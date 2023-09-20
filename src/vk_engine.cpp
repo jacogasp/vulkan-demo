@@ -134,6 +134,25 @@ void VulkanEngine::init_framebuffers()
   }
 }
 
+void VulkanEngine::init_sync_structures()
+{
+  VkFenceCreateInfo fence_create_info{};
+  fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fence_create_info.pNext = nullptr;
+  fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+  vk_check(
+      vkCreateFence(m_device, &fence_create_info, nullptr, &m_render_fence));
+
+  VkSemaphoreCreateInfo semaphore_create_info{};
+  semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+  semaphore_create_info.pNext = nullptr;
+  semaphore_create_info.flags = 0;
+  vk_check(vkCreateSemaphore(m_device, &semaphore_create_info, nullptr,
+                             &m_present_semaphore));
+  vk_check(vkCreateSemaphore(m_device, &semaphore_create_info, nullptr,
+                             &m_render_semaphore));
+}
+
 void VulkanEngine::init()
 {
   SDL_Init(SDL_INIT_VIDEO);
@@ -150,6 +169,7 @@ void VulkanEngine::init()
   init_commands();
   init_default_renderpass();
   init_framebuffers();
+  init_sync_structures();
   m_is_initialized = true;
 }
 
@@ -173,6 +193,9 @@ void VulkanEngine::run()
 void VulkanEngine::cleanup()
 {
   if (m_is_initialized) {
+    vkDestroySemaphore(m_device, m_render_semaphore, nullptr);
+    vkDestroySemaphore(m_device, m_present_semaphore, nullptr);
+    vkDestroyFence(m_device, m_render_fence, nullptr);
     vkDestroyCommandPool(m_device, m_command_pool, nullptr);
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
     vkDestroyRenderPass(m_device, m_render_pass, nullptr);

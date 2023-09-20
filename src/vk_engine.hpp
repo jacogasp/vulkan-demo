@@ -29,11 +29,16 @@ class VulkanEngine {
   VkRenderPass m_render_pass;
   std::vector<VkFramebuffer> m_frame_buffers;
 
+  VkFence m_render_fence;
+  VkSemaphore m_present_semaphore;
+  VkSemaphore m_render_semaphore;
+
   void init_vulkan();
   void init_swapchain();
   void init_commands();
   void init_default_renderpass();
   void init_framebuffers();
+  void init_sync_structures();
 
  public:
   void init();

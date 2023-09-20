@@ -26,11 +26,16 @@ class VulkanEngine {
   std::vector<VkImage> m_swapchain_images;
   std::vector<VkImageView> m_swapchain_image_views;
 
+  VkRenderPass m_render_pass;
+  std::vector<VkFramebuffer> m_frame_buffers;
+
   void init_vulkan();
   void init_swapchain();
   void init_commands();
+  void init_default_renderpass();
+  void init_framebuffers();
 
-  public:
+ public:
   void init();
   void draw();
   void run();

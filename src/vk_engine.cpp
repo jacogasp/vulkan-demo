@@ -5,6 +5,7 @@
 #include <VkBootstrap.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 
@@ -174,7 +175,71 @@ void VulkanEngine::init()
 }
 
 void VulkanEngine::draw()
-{}
+{
+  // Wait until the GPU has finished, with a 1s timeout and reset the fence
+  vk_check(vkWaitForFences(m_device, 1, &m_render_fence, true, 1'000'000'000));
+  vk_check(vkResetFences(m_device, 1, &m_render_fence));
+  // Request the image from the swapchain with a 1s timeout
+  std::uint32_t swapchain_image_index;
+  vk_check(vkAcquireNextImageKHR(m_device, m_swapchain, 1'000'000'000,
+                                 m_present_semaphore, nullptr,
+                                 &swapchain_image_index));
+  // Reset the command buffer
+  vk_check(vkResetCommandBuffer(m_main_command_buffer, 0));
+  // Begin the command buffer recording. We'll use the buffer exactly once
+  VkCommandBufferBeginInfo cb_info{};
+  cb_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  cb_info.pNext            = nullptr;
+  cb_info.pInheritanceInfo = nullptr;
+  cb_info.flags            = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+  vk_check(vkBeginCommandBuffer(m_main_command_buffer, &cb_info));
+  // Make some color
+  VkClearValue clear_value;
+  float flash       = std::abs(std::sin(m_frame_number / 120.f));
+  clear_value.color = {{0.0f, 0.0f, flash, 1.0f}};
+  // Start the main render pass
+  VkRenderPassBeginInfo rp_info{};
+  rp_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  rp_info.pNext               = nullptr;
+  rp_info.renderPass          = m_render_pass;
+  rp_info.renderArea.offset.x = 0;
+  rp_info.renderArea.offset.y = 0;
+  rp_info.renderArea.extent   = m_window_extend;
+  rp_info.framebuffer         = m_frame_buffers[swapchain_image_index];
+  rp_info.clearValueCount     = 1;
+  rp_info.pClearValues        = &clear_value;
+  vkCmdBeginRenderPass(m_main_command_buffer, &rp_info,
+                       VK_SUBPASS_CONTENTS_INLINE);
+  // Render stuff
+  // End the main render pass and the command buffer;
+  vkCmdEndRenderPass(m_main_command_buffer);
+  vk_check(vkEndCommandBuffer(m_main_command_buffer));
+  // Submit the command buffer to the command queue
+  VkPipelineStageFlags wait_stage =
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  VkSubmitInfo submit_info{};
+  submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submit_info.pNext                = nullptr;
+  submit_info.pWaitDstStageMask    = &wait_stage;
+  submit_info.waitSemaphoreCount   = 1;
+  submit_info.pWaitSemaphores      = &m_present_semaphore;
+  submit_info.signalSemaphoreCount = 1;
+  submit_info.pSignalSemaphores    = &m_render_semaphore;
+  submit_info.commandBufferCount   = 1;
+  submit_info.pCommandBuffers      = &m_main_command_buffer;
+  vk_check(vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_render_fence));
+  // Display the image to the screen
+  VkPresentInfoKHR present_info{};
+  present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+  present_info.pNext              = nullptr;
+  present_info.swapchainCount     = 1;
+  present_info.pSwapchains        = &m_swapchain;
+  present_info.waitSemaphoreCount = 1;
+  present_info.pWaitSemaphores    = &m_render_semaphore;
+  present_info.pImageIndices      = &swapchain_image_index;
+  vk_check(vkQueuePresentKHR(m_graphics_queue, &present_info));
+  ++m_frame_number;
+}
 
 void VulkanEngine::run()
 {

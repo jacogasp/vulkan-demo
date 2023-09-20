@@ -16,6 +16,8 @@ find_package(Vulkan REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(vk-bootstrap REQUIRED)
 
+add_subdirectory(shaders)
+
 add_library(
   vulkanengine
   src/vk_engine.cpp

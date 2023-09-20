@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 
 #include "vk_init.hpp"
@@ -276,4 +277,33 @@ void VulkanEngine::cleanup()
     vkDestroyInstance(m_instance, nullptr);
     SDL_DestroyWindow(m_window);
   }
+}
+
+bool VulkanEngine::load_shader_module(std::filesystem::path const& file_path,
+                                      VkShaderModule* out_shader_module)
+{
+  std::ifstream file{file_path, std::ios::ate | std::ios::binary};
+  if (!file.is_open()) {
+    return false;
+  }
+  std::size_t file_size = file.tellg();
+  std::vector<uint32_t> buffer;
+  buffer.reserve(file_size / sizeof(char));
+  file.seekg(0);
+  file.read(reinterpret_cast<char*>(buffer.data()), file_size);
+
+  // Create a new shader module
+  VkShaderModuleCreateInfo create_info{};
+  create_info.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  create_info.pNext    = nullptr;
+  create_info.codeSize = buffer.size() * sizeof(char);
+  create_info.pCode    = buffer.data();
+
+  VkShaderModule shader_module;
+  if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module)
+      != VK_SUCCESS) {
+    return false;
+  }
+  *out_shader_module = shader_module;
+  return true;
 }

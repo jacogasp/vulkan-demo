@@ -2,8 +2,10 @@
 #define ENGINE_HPP
 
 #include "vk_types.hpp"
-#include <vector>
+
 #include <cinttypes>
+#include <filesystem>
+#include <vector>
 
 class VulkanEngine
 {
@@ -46,5 +48,8 @@ class VulkanEngine
   void draw();
   void run();
   void cleanup();
+
+  bool load_shader_module(std::filesystem::path const& file_path,
+                          VkShaderModule* shader_module);
 };
 #endif // ENGINE_HPP

@@ -5,11 +5,12 @@
 #include <vector>
 #include <cinttypes>
 
-class VulkanEngine {
-  bool m_is_initialized { false };
-  int m_frame_number { 0 };
-  VkExtent2D m_window_extend { 1280, 600 };
-  struct SDL_Window* m_window { nullptr };
+class VulkanEngine
+{
+  bool m_is_initialized{false};
+  int m_frame_number{0};
+  VkExtent2D m_window_extend{1280, 600};
+  struct SDL_Window* m_window{nullptr};
 
   VkInstance m_instance;
   VkDebugUtilsMessengerEXT m_debug_messenger;

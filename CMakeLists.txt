@@ -27,7 +27,7 @@ add_library(
 
 target_link_libraries(
   vulkanengine 
-  Vulkan::Vulkan 
+  Vulkan::Vulkan
   SDL2::SDL2 
   vk-bootstrap::vk-bootstrap
 )

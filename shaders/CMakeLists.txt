@@ -1,10 +1,10 @@
 set(SHADER_SOURCE_DIR ${PROJECT_SOURCE_DIR}/shaders)
 file(
   GLOB GLSL_SOURCE_FILES
-  "${SHADER_SOURCE_DIR}/*.glsl",
-  "${SHADER_SOURCE_DIR}/*.vert",
-  "${SHADER_SOURCE_DIR}/*.frag",
-  "${SHADER_SOURCE_DIR}/*.comp",
+  "${SHADER_SOURCE_DIR}/*.glsl"
+  "${SHADER_SOURCE_DIR}/*.vert"
+  "${SHADER_SOURCE_DIR}/*.frag"
+  "${SHADER_SOURCE_DIR}/*.comp"
 )
 
 # Compile shaders

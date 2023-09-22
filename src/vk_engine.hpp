@@ -38,6 +38,9 @@ class VulkanEngine
 
   VkPipelineLayout m_triangle_pipeline_layout;
   VkPipeline m_triangle_pipeline;
+  VkPipeline m_red_triangle_pipeline;
+
+  int m_selected_shader{0};
 
   void init_vulkan();
   void init_swapchain();
@@ -82,6 +85,7 @@ class PipelineBuilder
       VkPipelineColorBlendAttachmentState const& state);
   void set_multisampling_info(VkPipelineMultisampleStateCreateInfo const& info);
   void set_pipeline_layout(VkPipelineLayout const& layout);
+  void clear_shaders();
 };
 
 #endif // ENGINE_HPP

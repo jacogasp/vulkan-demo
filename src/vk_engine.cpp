@@ -172,6 +172,20 @@ void VulkanEngine::init_pipelines()
     std::cerr << "Error loading triangle fragment shader\n";
   }
 
+  VkShaderModule red_vert_shader;
+  if (load_shader_module("shaders/triangle_red.vert.spv", &red_vert_shader)) {
+    std::cerr << "Red triangle vertex shader successfully loaded\n";
+  } else {
+    std::cerr << "Error loading red triangle vertex shader\n";
+  }
+
+  VkShaderModule red_frag_shader;
+  if (load_shader_module("shaders/triangle_red.frag.spv", &red_frag_shader)) {
+    std::cerr << "Red triangle fragment shader successfully loaded\n";
+  } else {
+    std::cerr << "Error loading red triangle fragment shader\n";
+  }
+
   auto pipeline_layout_info = vkinit::pipeline_layout_create_info();
   vk_check(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr,
                                   &m_triangle_pipeline_layout));
@@ -197,7 +211,17 @@ void VulkanEngine::init_pipelines()
   pipeline_builder.set_color_blend_attachment_state(
       vkinit::color_blench_attachment_state());
   pipeline_builder.set_pipeline_layout(m_triangle_pipeline_layout);
+  // Build pipelines
   m_triangle_pipeline =
+      pipeline_builder.build_pipeline(m_device, m_render_pass);
+
+  pipeline_builder.clear_shaders();
+
+  pipeline_builder.push_back(vkinit::pipeline_shader_stage_create_info(
+      VK_SHADER_STAGE_VERTEX_BIT, red_vert_shader));
+  pipeline_builder.push_back(vkinit::pipeline_shader_stage_create_info(
+      VK_SHADER_STAGE_FRAGMENT_BIT, red_frag_shader));
+  m_red_triangle_pipeline =
       pipeline_builder.build_pipeline(m_device, m_render_pass);
 }
 
@@ -258,10 +282,17 @@ void VulkanEngine::draw()
   rp_info.pClearValues        = &clear_value;
   vkCmdBeginRenderPass(m_main_command_buffer, &rp_info,
                        VK_SUBPASS_CONTENTS_INLINE);
+
   // Render stuff
-  vkCmdBindPipeline(m_main_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    m_triangle_pipeline);
+  if (m_selected_shader == 0) {
+    vkCmdBindPipeline(m_main_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      m_triangle_pipeline);
+  } else {
+    vkCmdBindPipeline(m_main_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      m_red_triangle_pipeline);
+  }
   vkCmdDraw(m_main_command_buffer, 3, 1, 0, 0);
+
   // End the main render pass and the command buffer;
   vkCmdEndRenderPass(m_main_command_buffer);
   vk_check(vkEndCommandBuffer(m_main_command_buffer));
@@ -300,6 +331,12 @@ void VulkanEngine::run()
     while (SDL_PollEvent(&e) != 0) {
       if (e.type == SDL_QUIT) {
         run = false;
+      } else if (e.type == SDL_KEYDOWN) {
+        if (e.key.keysym.sym == SDLK_SPACE) {
+          std::cerr << "switch shader\n";
+          m_selected_shader =
+              m_selected_shader == 1 ? 0 : m_selected_shader + 1;
+        }
       }
     }
     draw();
@@ -453,4 +490,9 @@ void PipelineBuilder::set_multisampling_info(
 void PipelineBuilder::set_pipeline_layout(VkPipelineLayout const& layout)
 {
   m_pipeline_layout = layout;
+}
+
+void PipelineBuilder::clear_shaders()
+{
+  m_shader_stages.clear();
 }

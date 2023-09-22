@@ -113,4 +113,22 @@ VkPipelineLayoutCreateInfo pipeline_layout_create_info()
   return info;
 }
 
+VkFenceCreateInfo create_fence_info(VkFenceCreateFlagBits flags)
+{
+  VkFenceCreateInfo info{};
+  info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  info.pNext = nullptr;
+  info.flags = flags;
+  return info;
+}
+
+VkSemaphoreCreateInfo create_semaphore_info(VkSemaphoreCreateFlags flags)
+{
+  VkSemaphoreCreateInfo info{};
+  info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+  info.pNext = nullptr;
+  info.flags = flags;
+  return info;
+}
+
 } // namespace vkinit

@@ -70,6 +70,8 @@ void VulkanEngine::init_swapchain()
   m_swapchain_images       = vkb_swapchain.get_images().value();
   m_swapchain_image_views  = vkb_swapchain.get_image_views().value();
   m_swapchain_image_format = vkb_swapchain.image_format;
+  m_main_deletion_queue.push(
+      [=] { vkDestroySwapchainKHR(m_device, m_swapchain, nullptr); });
 }
 
 void VulkanEngine::init_commands()
@@ -83,6 +85,8 @@ void VulkanEngine::init_commands()
   auto cmd_alloc_info{vkinit::command_buffer_allocate_info(m_command_pool, 1)};
   vk_check(vkAllocateCommandBuffers(m_device, &cmd_alloc_info,
                                     &m_main_command_buffer));
+  m_main_deletion_queue.push(
+      [=] { vkDestroyCommandPool(m_device, m_command_pool, nullptr); });
 }
 
 void VulkanEngine::init_default_renderpass()
@@ -114,6 +118,8 @@ void VulkanEngine::init_default_renderpass()
   render_pass_info.pSubpasses      = &subpass;
   vk_check(
       vkCreateRenderPass(m_device, &render_pass_info, nullptr, &m_render_pass));
+  m_main_deletion_queue.push(
+      [=] { vkDestroyRenderPass(m_device, m_render_pass, nullptr); });
 }
 
 void VulkanEngine::init_framebuffers()
@@ -134,26 +140,30 @@ void VulkanEngine::init_framebuffers()
     auto result =
         vkCreateFramebuffer(m_device, &fb_info, nullptr, &m_frame_buffers[i]);
     vk_check(result);
+    m_main_deletion_queue.push(
+        [=] { vkDestroyFramebuffer(m_device, m_frame_buffers[i], nullptr); });
+    m_main_deletion_queue.push([=] {
+      vkDestroyImageView(m_device, m_swapchain_image_views[i], nullptr);
+    });
   }
 }
 
 void VulkanEngine::init_sync_structures()
 {
-  VkFenceCreateInfo fence_create_info{};
-  fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  fence_create_info.pNext = nullptr;
-  fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-  vk_check(
-      vkCreateFence(m_device, &fence_create_info, nullptr, &m_render_fence));
+  auto fence_info = vkinit::create_fence_info(VK_FENCE_CREATE_SIGNALED_BIT);
+  vk_check(vkCreateFence(m_device, &fence_info, nullptr, &m_render_fence));
+  m_main_deletion_queue.push(
+      [=] { vkDestroyFence(m_device, m_render_fence, nullptr); });
 
-  VkSemaphoreCreateInfo semaphore_create_info{};
-  semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-  semaphore_create_info.pNext = nullptr;
-  semaphore_create_info.flags = 0;
-  vk_check(vkCreateSemaphore(m_device, &semaphore_create_info, nullptr,
+  auto semaphore_info = vkinit::create_semaphore_info(0);
+  vk_check(vkCreateSemaphore(m_device, &semaphore_info, nullptr,
                              &m_present_semaphore));
-  vk_check(vkCreateSemaphore(m_device, &semaphore_create_info, nullptr,
+  vk_check(vkCreateSemaphore(m_device, &semaphore_info, nullptr,
                              &m_render_semaphore));
+  m_main_deletion_queue.push(
+      [=] { vkDestroySemaphore(m_device, m_present_semaphore, nullptr); });
+  m_main_deletion_queue.push(
+      [=] { vkDestroySemaphore(m_device, m_render_semaphore, nullptr); });
 }
 
 void VulkanEngine::init_pipelines()
@@ -223,6 +233,17 @@ void VulkanEngine::init_pipelines()
       VK_SHADER_STAGE_FRAGMENT_BIT, red_frag_shader));
   m_red_triangle_pipeline =
       pipeline_builder.build_pipeline(m_device, m_render_pass);
+
+  vkDestroyShaderModule(m_device, frag_shader, nullptr);
+  vkDestroyShaderModule(m_device, vert_shader, nullptr);
+  vkDestroyShaderModule(m_device, red_frag_shader, nullptr);
+  vkDestroyShaderModule(m_device, red_vert_shader, nullptr);
+
+  m_main_deletion_queue.push([=] {
+    vkDestroyPipelineLayout(m_device, m_triangle_pipeline_layout, nullptr);
+    vkDestroyPipeline(m_device, m_triangle_pipeline, nullptr);
+    vkDestroyPipeline(m_device, m_red_triangle_pipeline, nullptr);
+  });
 }
 
 void VulkanEngine::init()
@@ -346,18 +367,8 @@ void VulkanEngine::run()
 void VulkanEngine::cleanup()
 {
   if (m_is_initialized) {
-    vkDestroySemaphore(m_device, m_render_semaphore, nullptr);
-    vkDestroySemaphore(m_device, m_present_semaphore, nullptr);
-    vkDestroyFence(m_device, m_render_fence, nullptr);
-    vkDestroyCommandPool(m_device, m_command_pool, nullptr);
-    vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
-    vkDestroyRenderPass(m_device, m_render_pass, nullptr);
-    for (auto frame_buffer : m_frame_buffers) {
-      vkDestroyFramebuffer(m_device, frame_buffer, nullptr);
-    }
-    for (auto image_view : m_swapchain_image_views) {
-      vkDestroyImageView(m_device, image_view, nullptr);
-    }
+    vkWaitForFences(m_device, 1, &m_render_fence, true, 1'000'000);
+    m_main_deletion_queue.flush();
     vkDestroyDevice(m_device, nullptr);
     vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     vkb::destroy_debug_utils_messenger(m_instance, m_debug_messenger);
@@ -495,4 +506,17 @@ void PipelineBuilder::set_pipeline_layout(VkPipelineLayout const& layout)
 void PipelineBuilder::clear_shaders()
 {
   m_shader_stages.clear();
+}
+
+void DeletionQueue::push(std::function<void()> const& f)
+{
+  m_queue.push(f);
+}
+
+void DeletionQueue::flush()
+{
+  while (!m_queue.empty()) {
+    m_queue.front()();
+    m_queue.pop();
+  }
 }

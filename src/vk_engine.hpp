@@ -5,7 +5,19 @@
 
 #include <cinttypes>
 #include <filesystem>
+#include <functional>
+#include <queue>
 #include <vector>
+
+class DeletionQueue
+{
+  using Function = std::function<void()>;
+  std::queue<Function> m_queue;
+
+ public:
+  void push(Function const& f);
+  void flush();
+};
 
 class VulkanEngine
 {
@@ -39,6 +51,8 @@ class VulkanEngine
   VkPipelineLayout m_triangle_pipeline_layout;
   VkPipeline m_triangle_pipeline;
   VkPipeline m_red_triangle_pipeline;
+
+  DeletionQueue m_main_deletion_queue;
 
   int m_selected_shader{0};
 

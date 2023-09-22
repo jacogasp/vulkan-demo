@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 #include "vk_init.hpp"
 #include "vk_types.hpp"
@@ -155,6 +156,51 @@ void VulkanEngine::init_sync_structures()
                              &m_render_semaphore));
 }
 
+void VulkanEngine::init_pipelines()
+{
+  VkShaderModule vert_shader;
+  if (load_shader_module("shaders/triangle.vert.spv", &vert_shader)) {
+    std::cerr << "Triangle vertex shader successfully loaded\n";
+  } else {
+    std::cerr << "Error loading triangle vertex shader\n";
+  }
+
+  VkShaderModule frag_shader;
+  if (load_shader_module("shaders/triangle.frag.spv", &frag_shader)) {
+    std::cerr << "Triangle fragment shader successfully loaded\n";
+  } else {
+    std::cerr << "Error loading triangle fragment shader\n";
+  }
+
+  auto pipeline_layout_info = vkinit::pipeline_layout_create_info();
+  vk_check(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr,
+                                  &m_triangle_pipeline_layout));
+
+  PipelineBuilder pipeline_builder;
+  pipeline_builder.push_back(vkinit::pipeline_shader_stage_create_info(
+      VK_SHADER_STAGE_VERTEX_BIT, vert_shader));
+  pipeline_builder.push_back(vkinit::pipeline_shader_stage_create_info(
+      VK_SHADER_STAGE_FRAGMENT_BIT, frag_shader));
+
+  pipeline_builder.set_vertex_input_info(
+      vkinit::vertex_input_state_create_info());
+  pipeline_builder.set_input_assembly_info(
+      vkinit::init_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST));
+  pipeline_builder.set_viewport(
+      {0.0f, 0.0f, static_cast<float>(m_window_extend.width),
+       static_cast<float>(m_window_extend.height), 0.0f, 1.0f});
+  pipeline_builder.set_scissor({{0, 0}, m_window_extend});
+  pipeline_builder.set_rasterizer_info(
+      vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL));
+  pipeline_builder.set_multisampling_info(
+      vkinit::multisampling_state_create_info());
+  pipeline_builder.set_color_blend_attachment_state(
+      vkinit::color_blench_attachment_state());
+  pipeline_builder.set_pipeline_layout(m_triangle_pipeline_layout);
+  m_triangle_pipeline =
+      pipeline_builder.build_pipeline(m_device, m_render_pass);
+}
+
 void VulkanEngine::init()
 {
   SDL_Init(SDL_INIT_VIDEO);
@@ -172,6 +218,7 @@ void VulkanEngine::init()
   init_default_renderpass();
   init_framebuffers();
   init_sync_structures();
+  init_pipelines();
   m_is_initialized = true;
 }
 
@@ -212,6 +259,9 @@ void VulkanEngine::draw()
   vkCmdBeginRenderPass(m_main_command_buffer, &rp_info,
                        VK_SUBPASS_CONTENTS_INLINE);
   // Render stuff
+  vkCmdBindPipeline(m_main_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    m_triangle_pipeline);
+  vkCmdDraw(m_main_command_buffer, 3, 1, 0, 0);
   // End the main render pass and the command buffer;
   vkCmdEndRenderPass(m_main_command_buffer);
   vk_check(vkEndCommandBuffer(m_main_command_buffer));
@@ -307,4 +357,100 @@ bool VulkanEngine::load_shader_module(std::filesystem::path const& file_path,
   }
   *out_shader_module = shader_module;
   return true;
+}
+
+VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
+{
+  VkPipelineViewportStateCreateInfo viewport_state{};
+  viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  viewport_state.pNext = nullptr;
+  viewport_state.viewportCount = 1;
+  viewport_state.pViewports    = &m_viewport;
+  viewport_state.scissorCount  = 1;
+  viewport_state.pScissors     = &m_scissor;
+
+  VkPipelineColorBlendStateCreateInfo color_blending{};
+  color_blending.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  color_blending.pNext           = nullptr;
+  color_blending.logicOpEnable   = VK_FALSE;
+  color_blending.logicOp         = VK_LOGIC_OP_COPY;
+  color_blending.attachmentCount = 1;
+  color_blending.pAttachments    = &m_color_blend_attachment;
+
+  VkGraphicsPipelineCreateInfo pipeline_info{};
+  pipeline_info.sType      = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipeline_info.pNext      = nullptr;
+  pipeline_info.stageCount = m_shader_stages.size();
+  pipeline_info.pStages    = m_shader_stages.data();
+  pipeline_info.pVertexInputState   = &m_vertex_input_info;
+  pipeline_info.pInputAssemblyState = &m_input_assembly;
+  pipeline_info.pViewportState      = &viewport_state;
+  pipeline_info.pRasterizationState = &m_rasterizer;
+  pipeline_info.pMultisampleState   = &m_multisampling;
+  pipeline_info.pColorBlendState    = &color_blending;
+  pipeline_info.layout              = m_pipeline_layout;
+  pipeline_info.renderPass          = pass;
+  pipeline_info.subpass             = 0;
+  pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
+
+  VkPipeline pipeline;
+  VkResult result = vkCreateGraphicsPipelines(
+      device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline);
+  if (result == VK_SUCCESS) {
+    return pipeline;
+  } else {
+    std::cerr << "failed to create pipeline with error: " << result << '\n';
+    return VK_NULL_HANDLE;
+  }
+}
+
+void PipelineBuilder::push_back(VkPipelineShaderStageCreateInfo&& shader_stage)
+{
+  m_shader_stages.push_back(std::move(shader_stage));
+}
+
+void PipelineBuilder::set_vertex_input_info(
+    VkPipelineVertexInputStateCreateInfo const& info)
+{
+  m_vertex_input_info = info;
+}
+
+void PipelineBuilder::set_input_assembly_info(
+    VkPipelineInputAssemblyStateCreateInfo const& info)
+{
+  m_input_assembly = info;
+}
+
+void PipelineBuilder::set_viewport(VkViewport const& viewport)
+{
+  m_viewport = viewport;
+}
+
+void PipelineBuilder::set_scissor(VkRect2D const& scissor)
+{
+  m_scissor = scissor;
+}
+
+void PipelineBuilder::set_rasterizer_info(
+    VkPipelineRasterizationStateCreateInfo const& info)
+{
+  m_rasterizer = info;
+}
+
+void PipelineBuilder::set_color_blend_attachment_state(
+    VkPipelineColorBlendAttachmentState const& state)
+{
+  m_color_blend_attachment = state;
+}
+
+void PipelineBuilder::set_multisampling_info(
+    VkPipelineMultisampleStateCreateInfo const& info)
+{
+  m_multisampling = info;
+}
+
+void PipelineBuilder::set_pipeline_layout(VkPipelineLayout const& layout)
+{
+  m_pipeline_layout = layout;
 }

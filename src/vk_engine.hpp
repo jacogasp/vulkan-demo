@@ -36,12 +36,16 @@ class VulkanEngine
   VkSemaphore m_present_semaphore;
   VkSemaphore m_render_semaphore;
 
+  VkPipelineLayout m_triangle_pipeline_layout;
+  VkPipeline m_triangle_pipeline;
+
   void init_vulkan();
   void init_swapchain();
   void init_commands();
   void init_default_renderpass();
   void init_framebuffers();
   void init_sync_structures();
+  void init_pipelines();
 
  public:
   void init();
@@ -52,4 +56,32 @@ class VulkanEngine
   bool load_shader_module(std::filesystem::path const& file_path,
                           VkShaderModule* shader_module);
 };
+
+class PipelineBuilder
+{
+  std::vector<VkPipelineShaderStageCreateInfo> m_shader_stages;
+  VkPipelineVertexInputStateCreateInfo m_vertex_input_info;
+  VkPipelineInputAssemblyStateCreateInfo m_input_assembly;
+  VkViewport m_viewport;
+  VkRect2D m_scissor;
+  VkPipelineRasterizationStateCreateInfo m_rasterizer;
+  VkPipelineColorBlendAttachmentState m_color_blend_attachment;
+  VkPipelineMultisampleStateCreateInfo m_multisampling;
+  VkPipelineLayout m_pipeline_layout;
+
+ public:
+  VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
+  void push_back(VkPipelineShaderStageCreateInfo&& shader_stage);
+  void set_vertex_input_info(VkPipelineVertexInputStateCreateInfo const& info);
+  void
+  set_input_assembly_info(VkPipelineInputAssemblyStateCreateInfo const& info);
+  void set_viewport(VkViewport const& viewport);
+  void set_scissor(VkRect2D const& scissor);
+  void set_rasterizer_info(VkPipelineRasterizationStateCreateInfo const& info);
+  void set_color_blend_attachment_state(
+      VkPipelineColorBlendAttachmentState const& state);
+  void set_multisampling_info(VkPipelineMultisampleStateCreateInfo const& info);
+  void set_pipeline_layout(VkPipelineLayout const& layout);
+};
+
 #endif // ENGINE_HPP

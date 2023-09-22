@@ -284,11 +284,12 @@ bool VulkanEngine::load_shader_module(std::filesystem::path const& file_path,
 {
   std::ifstream file{file_path, std::ios::ate | std::ios::binary};
   if (!file.is_open()) {
+    std::cerr << file_path << " not found\n";
     return false;
   }
   std::size_t file_size = file.tellg();
   std::vector<uint32_t> buffer;
-  buffer.reserve(file_size / sizeof(char));
+  buffer.resize(file_size / sizeof(uint32_t));
   file.seekg(0);
   file.read(reinterpret_cast<char*>(buffer.data()), file_size);
 
@@ -296,7 +297,7 @@ bool VulkanEngine::load_shader_module(std::filesystem::path const& file_path,
   VkShaderModuleCreateInfo create_info{};
   create_info.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   create_info.pNext    = nullptr;
-  create_info.codeSize = buffer.size() * sizeof(char);
+  create_info.codeSize = buffer.size() * sizeof(uint32_t);
   create_info.pCode    = buffer.data();
 
   VkShaderModule shader_module;
